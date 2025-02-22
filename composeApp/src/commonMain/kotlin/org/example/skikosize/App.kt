@@ -4,6 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.MaterialTheme
@@ -52,11 +53,14 @@ fun DiceCell(
         modifier = modifier
             .fillMaxSize()
             .background(backgroundColor)
-            .clickable {
+            .combinedClickable(onLongClick = {
+                if (!isRolling) history.clear()
+            }, onClick = {
                 if (!isRolling) {
                     isRolling = true
                 }
-            },
+
+            }),
         contentAlignment = Alignment.BottomCenter
     ) {
         AnimatedContent(
@@ -66,7 +70,7 @@ fun DiceCell(
                 slideInVertically(
                     initialOffsetY = { -it },
                     animationSpec = tween(durationMillis = slidingAnimationDuration)
-                ) togetherWith  slideOutVertically(
+                ) togetherWith slideOutVertically(
                     targetOffsetY = { it },
                     animationSpec = tween(durationMillis = slidingAnimationDuration)
                 )
