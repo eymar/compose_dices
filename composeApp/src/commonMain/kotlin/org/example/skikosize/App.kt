@@ -3,26 +3,28 @@ package org.example.skikosize
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.*
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import org.jetbrains.compose.ui.tooling.preview.Preview
-
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 @Preview
 fun App() {
-    MaterialTheme {
+    MaterialTheme(colorScheme = lightColorScheme()) {
         DiceGrid()
     }
 }
@@ -44,6 +46,8 @@ fun DiceCell(
     // Parse the maximum value from the dice label (e.g. "D100" -> 100)
     val maxValue = dice.removePrefix("D").toIntOrNull() ?: 6
 
+    val history = remember { mutableStateListOf<Int>() }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -53,7 +57,7 @@ fun DiceCell(
                     isRolling = true
                 }
             },
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.BottomCenter
     ) {
         AnimatedContent(
             targetState = displayedText,
@@ -72,11 +76,18 @@ fun DiceCell(
                 Text(
                     text = targetText.value,
                     style = if (targetText.value == dice || !isResultSettled)
-                        MaterialTheme.typography.h4
+                        MaterialTheme.typography.headlineSmall
                     else
-                        MaterialTheme.typography.h1
+                        MaterialTheme.typography.displayLarge
                 )
             }
+        }
+
+        Box(modifier = Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.BottomCenter) {
+            val text = history.joinToString(", ") { it.toString() }
+            GradientAlphaSizeText(
+                text = text, baseColor = Color.Black
+            )
         }
     }
 
@@ -84,7 +95,7 @@ fun DiceCell(
         LaunchedEffect(isRolling) {
             isResultSettled = false
             // We'll use 9 iterations for the roll.
-            val iterations = 8
+            val iterations = 9
             // Define the starting and ending delay (in milliseconds).
             val initialDelay = 20L
             val finalDelay = 100L
@@ -98,9 +109,12 @@ fun DiceCell(
                 delay(currentDelay)
             }
             // Settle on a final result.
-            displayedText = WrappedTextValue((1..maxValue).random().toString())
+            val result = (1..maxValue).random()
+            displayedText = WrappedTextValue(result.toString())
             isResultSettled = true
             delay(1500)
+            history.add(result)
+            if (history.size > 6) history.removeFirst()
             displayedText = WrappedTextValue(dice)
             isRolling = false
         }
@@ -110,12 +124,49 @@ fun DiceCell(
 
 class WrappedTextValue(val value: String)
 
+@Composable
+fun GradientAlphaSizeText(
+    text: String,
+    baseColor: Color = Color.Red,
+    baseFontSize: TextUnit = 12.sp,
+    maxFontSize: TextUnit = 20.sp
+) {
+    // Build an AnnotatedString with per-character styling if the text is long enough.
+    val annotatedText: AnnotatedString = if (text.length > 3) {
+        buildAnnotatedString {
+            val words = text.split(" ")
+            val n = words.size
+            for ((i, word) in words.withIndex()) {
+                // Compute progress for this word from 0 (left) to 1 (right).
+                val progress = if (n > 1) i / (n - 1).toFloat() else 0f
+                // Interpolate alpha: leftmost word is 0.5, rightmost is 1.0.
+                val alpha = 0.5f + 0.5f * progress
+                // Interpolate font size from baseFontSize to maxFontSize.
+                val fontSize = lerp(TextStyle(fontSize = baseFontSize), TextStyle(fontSize = maxFontSize), progress)
+                // Apply the per-word style.
+                withStyle(SpanStyle(fontSize = fontSize.fontSize, color = baseColor.copy(alpha = alpha))) {
+                    append(word)
+                }
+                // Append a space between words, except after the last word.
+                if (i != n - 1) append(" ")
+            }
+        }
+    } else {
+        // If the text is short, use a single uniform style.
+        buildAnnotatedString {
+            append(text)
+        }
+    }
+
+    BasicText(text = annotatedText)
+}
+
 /**
  * Displays a grid of dice cells with 2 columns and 4 rows.
  * Each cell occupies equal space and displays one dice from the list with its unique color.
  */
 @Composable
-fun DiceGrid() {
+fun DiceGrid(modifier: Modifier = Modifier) {
     // List of dice types to display
     val diceTypes = listOf("D100", "D10", "D12", "D8", "D20", "D6", "D4", "D2")
 
@@ -132,7 +183,7 @@ fun DiceGrid() {
     )
 
     // Outer Column fills available space
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxSize()) {
         // There are 4 rows in total
         repeat(4) { rowIndex ->
             Row(
