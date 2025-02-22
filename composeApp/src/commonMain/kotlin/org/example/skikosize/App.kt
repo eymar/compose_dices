@@ -1,0 +1,158 @@
+package org.example.skikosize
+
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import org.jetbrains.compose.ui.tooling.preview.Preview
+
+import kotlinx.coroutines.delay
+
+@Composable
+@Preview
+fun App() {
+    MaterialTheme {
+        DiceGrid()
+    }
+}
+
+
+val slidingAnimationDuration = 100
+
+@Composable
+fun DiceCell(
+    dice: String,
+    backgroundColor: Color,
+    modifier: Modifier = Modifier
+) {
+    // Initially show the dice label.
+    var displayedText by remember { mutableStateOf(WrappedTextValue(dice)) }
+    var isRolling by remember { mutableStateOf(false) }
+    var isResultSettled by remember { mutableStateOf(true) }
+
+    // Parse the maximum value from the dice label (e.g. "D100" -> 100)
+    val maxValue = dice.removePrefix("D").toIntOrNull() ?: 6
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(backgroundColor)
+            .clickable {
+                if (!isRolling) {
+                    isRolling = true
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        AnimatedContent(
+            targetState = displayedText,
+            transitionSpec = {
+                // Animate the new text sliding in from the top while the old one slides out downward.
+                slideInVertically(
+                    initialOffsetY = { -it },
+                    animationSpec = tween(durationMillis = slidingAnimationDuration)
+                ) togetherWith  slideOutVertically(
+                    targetOffsetY = { it },
+                    animationSpec = tween(durationMillis = slidingAnimationDuration)
+                )
+            }
+        ) { targetText ->
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = targetText.value,
+                    style = if (targetText.value == dice || !isResultSettled)
+                        MaterialTheme.typography.h4
+                    else
+                        MaterialTheme.typography.h1
+                )
+            }
+        }
+    }
+
+    if (isRolling) {
+        LaunchedEffect(isRolling) {
+            isResultSettled = false
+            // We'll use 9 iterations for the roll.
+            val iterations = 8
+            // Define the starting and ending delay (in milliseconds).
+            val initialDelay = 20L
+            val finalDelay = 100L
+
+            for (i in 0 until iterations) {
+                // Update the displayed text with a random number from the dice's range.
+                displayedText = WrappedTextValue((1..maxValue).random().toString())
+                // Calculate the delay for this iteration by linear interpolation.
+                val progress = i / (iterations - 1).toFloat()  // Goes from 0f to 1f.
+                val currentDelay = initialDelay + ((finalDelay - initialDelay) * progress).toLong()
+                delay(currentDelay)
+            }
+            // Settle on a final result.
+            displayedText = WrappedTextValue((1..maxValue).random().toString())
+            isResultSettled = true
+            delay(1500)
+            displayedText = WrappedTextValue(dice)
+            isRolling = false
+        }
+    }
+}
+
+
+class WrappedTextValue(val value: String)
+
+/**
+ * Displays a grid of dice cells with 2 columns and 4 rows.
+ * Each cell occupies equal space and displays one dice from the list with its unique color.
+ */
+@Composable
+fun DiceGrid() {
+    // List of dice types to display
+    val diceTypes = listOf("D100", "D10", "D12", "D8", "D20", "D6", "D4", "D2")
+
+    // Define a palette of 8 nice background colors (one for each dice)
+    val diceColors = listOf(
+        Color(0xFFEF5350), // Vibrant Red for D100
+        Color(0xFF66BB6A), // Fresh Green for D10
+        Color(0xFF42A5F5), // Cool Blue for D12
+        Color(0xFFFFCA28), // Warm Amber for D8
+        Color(0xFFAB47BC), // Soft Purple for D20
+        Color(0xFFFF7043), // Bright Orange for D6
+        Color(0xFF26A69A), // Calming Teal for D4
+        Color(0xFF8D6E63)  // Earthy Brown for D2
+    )
+
+    // Outer Column fills available space
+    Column(modifier = Modifier.fillMaxSize()) {
+        // There are 4 rows in total
+        repeat(4) { rowIndex ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)  // Each row gets equal vertical space
+            ) {
+                // Each row has 2 columns
+                repeat(2) { columnIndex ->
+                    // Calculate the corresponding dice index
+                    val diceIndex = rowIndex * 2 + columnIndex
+                    DiceCell(
+                        dice = diceTypes[diceIndex],
+                        backgroundColor = diceColors[diceIndex],
+                        modifier = Modifier
+                            .weight(1f)      // Each cell takes equal horizontal space
+                            .fillMaxHeight() // Fills the height of the row
+                    )
+                }
+            }
+        }
+    }
+}
